@@ -23,6 +23,7 @@ require 'app/bootstrap.php';
 
 use Magento\Catalog\Model\Product;
 use Magento\Catalog\Model\ResourceModel\Product\Collection;
+use Magento\CatalogInventory\Api\Data\StockItemInterface;
 use Magento\CatalogInventory\Api\Data\StockStatusInterface;
 use Magento\CatalogInventory\Model\Stock\StockStatusRepository;
 use Magento\CatalogInventory\Model\StockRegistry;
@@ -65,6 +66,7 @@ class ResetConfigurableStockStatusApp extends Http implements AppInterface
         /** @var StockStatusRepository $stockStatusRepository */
         $stockStatusRepository = $this->_objectManager->create(StockStatusRepository::class);
 
+        $collection->addAttributeToSelect('name');
         $collection->addFieldToFilter('type_id', 'configurable');
 
         $this->log('Scanning %d configurables', $collection->getSize());
@@ -76,6 +78,8 @@ class ResetConfigurableStockStatusApp extends Http implements AppInterface
             $children = $linkManagement->getChildren($product->getSku());
             /** @var StockStatusInterface $status */
             $status = $stockRegistry->getStockStatusBySku($product->getSku(), $scopeId);
+            /** @var StockItemInterface $item */
+            $item = $stockRegistry->getStockItemBySku($product->getSku(), $scopeId);
 
             if (empty($children) || $status->getStockStatus() === StockStatusInterface::STATUS_IN_STOCK) {
                 $report[] = [$product->getSku(), $product->getName(), 'No'];
@@ -95,6 +99,8 @@ class ResetConfigurableStockStatusApp extends Http implements AppInterface
                 if (!$this->isDryRun()) {
                     $status->setStockStatus(StockStatusInterface::STATUS_IN_STOCK);
                     $stockStatusRepository->save($status);
+                    $item->setIsInStock(true);
+                    $stockRegistry->updateStockItemBySku($product->getSku(), $item);
                 }
 
                 $this->log('Updated stock status');
@@ -166,4 +172,3 @@ $bootstrap = \Magento\Framework\App\Bootstrap::create(BP, $_SERVER);
 $app = $bootstrap->createApplication('ResetConfigurableStockStatusApp');
 
 $bootstrap->run($app);
-
